@@ -1,0 +1,266 @@
+---
+title: "StatsProject1"
+author: "Haizhu Hong"
+date: "7/29/2020"
+output: html_document
+---
+
+Detailed Analysis
+
+6.Potential transformation
+7.Try price vs. carat+cut, carat+color, carat+clarity and relate results to Part III C
+8.Compare R squared, adjusted R squared, SSresiduals, calculate PRESS, AIC or BIC with the full model
+9.BoxCox plots and levene test to drop extreme values
+10.Relate to part III Log transformation 
+
+```{r}
+data<-read.csv(file='clean_diamond_data.csv')
+attach(data)
+# Treat clarity color and cut as categorical factors
+clarity <- factor(clarity)
+color <- factor(color)
+cut <- factor(cut)
+# Define calpress function to return PRESS stats
+calpress <- function(linear.model) {
+  pr <- residuals(linear.model)/(1 - lm.influence(linear.model)$hat)
+  press <- sum(pr^2)
+  return(press)
+}
+# Define calsst function to return sst stats
+calsst <- function(linear.model){
+  sst <- sum(anova(linear.model)$'Sum Sq')
+  return(sst)
+}
+```
+Try fit full model without transformation
+```{r}
+fullreg <- lm(price~carat+clarity+color+cut)
+summary(fullreg)
+anova(fullreg)
+par(mfrow=c(1,3))
+plot(fullreg$fitted.values,fullreg$residuals)
+abline(h=0,col="red")
+acf(fullreg$residuals)
+qqnorm(fullreg$residuals)
+qqline(fullreg$residuals,col="red")
+```
+Try regress price against carat and clarity
+```{r}
+clarityreg <- lm(price~carat+clarity)
+summary(clarityreg)
+anova(clarityreg)
+par(mfrow=c(1,2))
+plot(clarityreg$fitted.values,clarityreg$residuals)
+abline(h=0,col="red")
+acf(clarityreg$residuals)
+qqnorm(clarityreg$residuals)
+qqline(clarityreg$residuals,col="red")
+boxplot(price~clarity)
+library(lawstat) 
+levene.test(price,clarity)
+```
+Try regress price against carat and color
+```{r}
+colorreg <- lm(price~carat+color)
+summary(colorreg)
+anova(colorreg)
+par(mfrow=c(1,2))
+plot(colorreg$fitted.values,colorreg$residuals)
+abline(h=0,col="red")
+acf(colorreg$residuals)
+qqnorm(colorreg$residuals)
+qqline(colorreg$residuals,col="red")
+boxplot(price~color)
+library(lawstat) 
+levene.test(price,color)
+```
+Try regress price against carat and cut
+```{r}
+cutreg <- lm(price~carat+cut)
+summary(cutreg)
+anova(cutreg)
+par(mfrow=c(1,2))
+plot(cutreg$fitted.values,cutreg$residuals)
+abline(h=0,col="red")
+acf(cutreg$residuals)
+qqnorm(cutreg$residuals)
+qqline(cutreg$residuals,col="red")
+boxplot(price~cut)
+library(lawstat) 
+levene.test(price,cut)
+```
+Regress price against carat
+```{r}
+caratreg <- lm(price~carat)
+summary(caratreg)
+anova(caratreg)
+par(mfrow=c(1,3))
+plot(caratreg$fitted.values,caratreg$residuals)
+abline(h=0,col="red")
+acf(caratreg$residuals)
+qqnorm(caratreg$residuals)
+qqline(caratreg$residuals,col="red")
+```
+
+In summary, we can conclude that carat is the most influential indicator of diamond price. Adding cut, clarity, and color as additional predictors only slightly increased the r squared. 
+
+Data manipulation 
+1. regroup clarity into SI, VS, VVS, IF and FL
+2. regroup color into Colorless, Near colorless and No discernible
+```{r}
+library(plyr)
+data$newclarity <- revalue(data$clarity, c('SI1'='SI','SI2'='SI','VS1'='VS','VS2'='VS','VVS1'='VVS','VVS2'='VVS','IF'='IF','FL'='FL'))
+data$newclarity <- mapvalues(data$clarity, from = c('SI1','SI2','VS1','VS2','VVS1','VVS2','IF','FL'), to = c('SI','SI','VS','VS','VVS','VVS','IF','FL'))
+data$newcolor <- revalue(data$color, c('D'='Colorless','E'='Colorless','F'='Colorless','G'='Near colorless','H'='Near colorless','I'='No discernible','J'='No discernible'))
+data$newcolor <- mapvalues(data$color, from = c('D','E','F','G','H','I','J'), to = c('Colorless','Colorless','Colorless','Near colorless','Near colorless','No discernible','No discernible'))
+```
+After regrouping, fit a simplified full model, no significant improvement
+```{r}
+newfullreg <- lm(data$price~data$carat+data$newclarity+data$newcolor+data$cut)
+summary(newfullreg)
+anova(newfullreg)
+fullpress <- calpress(newfullreg)
+par(mfrow=c(1,3))
+plot(newfullreg$fitted.values,newfullreg$residuals)
+abline(h=0,col="red")
+acf(newfullreg$residuals)
+qqnorm(newfullreg$residuals)
+qqline(newfullreg$residuals,col="red")
+```
+
+Consider log transformation because residual plot is funnel-like which implies non-constant variance
+Also,from the scatter plot of price against carat, we observed that most data points are clustered around the lower left corner which indicates the sample data is not normally distributed. Therefore, we have a good reason to believe that a log transformation is needed to smooth out the sample distribution.
+```{r}
+logy <- log(data$price)
+data$logprice <- logy
+logreg <- lm(data$logprice~data$carat+data$newclarity+data$newcolor+data$cut)
+summary(logreg)
+anova(logreg)
+logpress <- calpress(logreg)
+par(mfrow=c(1,3))
+plot(logreg$fitted.values,logreg$residuals)
+abline(h=0,col="red")
+acf(logreg$residuals)
+qqnorm(logreg$residuals)
+qqline(logreg$residuals,col="red")
+```
+
+R squared  and adjusted R squared improved significantly, but residual plot showed a curved pattern.
+Since diamond price and weight (carat) are highly correlated, and as the regression model of price against carat showed, 56% of the variability in price can be explained by carat, we would also want to log transform carat after we transformed price.
+
+```{r}
+logx <- log(data$carat)
+data$logcarat <- logx
+logreg2 <- lm(data$logprice~data$logcarat+data$newclarity+data$newcolor+data$cut)
+summary(logreg2)
+anova(logreg2)
+logpress2 <- calpress(logreg2)
+par(mfrow=c(1,3))
+plot(logreg2$fitted.values,logreg2$residuals)
+abline(h=0,col="red")
+acf(logreg2$residuals)
+qqnorm(logreg2$residuals)
+qqline(logreg2$residuals,col="red")
+```
+
+```{r}
+library(lawstat) 
+levene.test(data$logprice,data$newclarity)
+levene.test(data$logprice,data$newcolor)
+levene.test(data$logprice,data$cut)
+```
+
+```{r}
+clarity1<-subset(data,newclarity=="SI") 
+clarity2<-subset(data,newclarity=="VS") 
+clarity3<-subset(data,newclarity=="VVS") 
+clarity4<-subset(data,newclarity=="IF") 
+clarity5<-subset(data,newclarity=="FL") 
+regclarity1<-lm(data$logprice~data$logcarat,data=clarity1)
+regclarity2<-lm(data$logprice~data$logcarat,data=clarity2)
+regclarity3<-lm(data$logprice~data$logcarat,data=clarity3)
+regclarity4<-lm(data$logprice~data$logcarat,data=clarity4)
+regclarity5<-lm(data$logprice~data$logcarat,data=clarity5)
+
+plot(data$logprice~data$logcarat, main='Scatterplot of Diamond Price Against Carat After Transformation, by Newclarity')
+points(clarity2$logcarat,clarity2$logprice, pch=2, col="red") 
+points(clarity3$logcarat,clarity3$logprice, pch=8, col="blue")
+points(clarity4$logcarat,clarity4$logprice, pch=12, col="green")
+points(clarity5$logcarat,clarity5$logprice, pch=14, col="yellow")
+abline(regclarity1,lty=1)
+abline(regclarity2,lty=2, col="red") 
+abline(regclarity3,lty=3, col="blue")
+abline(regclarity4,lty=4, col="green")
+abline(regclarity5,lty=5, col="yellow")
+legend("topleft", c("SI","VS","VVS","IF", "FL"), lty=c(1,2,3,4,5), pch=c(1,2,8,12,14), col=c("black","red","blue","green","yellow"))
+```
+
+Subset cut into four classes
+```{r}
+cut1<-subset(data,cut=="Very Good") 
+cut2<-subset(data,cut=="Good") 
+cut3<-subset(data,cut=="Ideal") 
+cut4<-subset(data,cut=="Astor Ideal") 
+regcut1<-lm(data$logprice~data$logcarat,data=cut1)
+regcut2<-lm(data$logprice~data$logcarat,data=cut2)
+regcut3<-lm(data$logprice~data$logcarat,data=cut3)
+regcut4<-lm(data$logprice~data$logcarat,data=cut4)
+```
+Scatter plot after transformation by cut
+regression lines of different classes of cut appeared to overlapped
+same slopes indicate no interaction effect
+
+```{r}
+plot(data$logprice~data$logcarat, main='Scatterplot of Diamond Price Against Carat After Transformation, by Cut')
+points(cut2$logcarat,cut2$logprice, pch=2, col="red") 
+points(cut3$logcarat,cut3$logprice, pch=8, col="blue")
+points(cut4$logcarat,cut4$logprice, pch=12, col="green")
+abline(regcut1,lty=1)
+abline(regcut2,lty=2, col="red") 
+abline(regcut3,lty=3, col="blue")
+abline(regcut4,lty=4, col="green")
+legend("topleft", c("Very Good","Good","Ideal","Astor Ideal"), lty=c(1,2,3,4), pch=c(1,2,8,12), col=c("black","red","blue","green"))
+```
+```{r}
+color1<-subset(data,newcolor=="Colorless") 
+color2<-subset(data,newcolor=="Near colorless") 
+color3<-subset(data,newcolor=="No discernible") 
+regcolor1<-lm(data$logprice~data$logcarat,data=color1)
+regcolor2<-lm(data$logprice~data$logcarat,data=color2)
+regcolor3<-lm(data$logprice~data$logcarat,data=color3)
+plot(data$logprice~data$logcarat, main='Scatterplot of Diamond Price Against Carat After Transformation, by Newcolor')
+points(color2$logcarat,color2$logprice, pch=2, col="red") 
+points(color3$logcarat,color3$logprice, pch=8, col="blue")
+abline(regcolor1,lty=1)
+abline(regcolor2,lty=2, col="red") 
+abline(regcolor3,lty=3, col="blue")
+legend("topleft", c("Colorless","Near colorless","No discernible"), lty=c(1,2,3), pch=c(1,2,8), col=c("black","red","blue"))
+```
+
+```{r}
+detach(data)
+```
+
+Unable to produce Bocox plots and tukey tests
+
+PRESS: fullnewreg 46253149887104, logpress 80340, logpress2 6600
+R squared: full model before transformation 0.5829, full model after regrouping 0.5821, logy model 0.7407, logy,loyx model 0.9787
+AdjR squared: same as R squared because large sample size compared to the number of parameters
+
+The most influential predictor is carat
+
+linear regression equation: logPrice = 1.9632715*logCarat+9.3424507 (FL+Colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2978760) (IF+Colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.7292294) (SI+Colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.4263652) (VVS+Colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.5374628) (VS+Colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.1289843) (FL+Near-colorless+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.3159359) (FL+No discernible+Aster Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.3077446) (FL+Colorless+Good)
+logPrice = 1.9632715*logCarat+(9.3424507-0.0881386) (FL+Colorless+Ideal)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2595581) (FL+Colorless+Very Good)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2595581-0.2978760) (IF+Colorless+Very Good)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2595581-0.7292294) (SI+Colorless+Very Good)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2595581-0.4263652) (VVS+Colorless+Very Good)
+logPrice = 1.9632715*logCarat+(9.3424507-0.2595581-0.5374628) (VS+Colorless+Very Good)
+....continued
