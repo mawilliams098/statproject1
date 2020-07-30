@@ -1,0 +1,42 @@
+---
+title: "Project 1 - EM"
+output: pdf_document
+---
+
+One way to analyze how the variables carat, color, cut, and clarity are related is to check for multicollinearity. There are two different methods of determining if there is multicollinearity between these predictor values. The first method of checking for multicollinearity is to review the summary of the linear regression with all the predictors included. If the model has a significant ANOVA F test and insignificant t tests, that is one sign for multicollinearity. Below are the summary results after fitting the model with the predictor values of carat, color, cut, and clarity and the response variable of price.
+
+```{full model, echo=FALSE}
+clarity <- factor(clarity)
+color <- factor(color)
+cut <- factor(cut)
+
+result <- lm(price~carat+color+cut+clarity)
+summary(result)
+
+```
+
+Based on this output, it appears both the ANOVA F test and the t tests are very significant. This is one sign that there is not multicollinearity between the predictors. This also shows the model is very fitted, but it is possible it is overfitted and not all the predictors are required.
+
+The next method of checking for multicollinearity is by calculating the variance inflation factor (VIF) for each of the predictors. The goal is for the predictors to have a VIF below 10. If the VIF exceeds 10, then it is a sign there is multicollinearity. Below are the VIF for the predictors in the full model.
+
+
+```{VIF result, echo=FALSE}
+library(faraway)
+
+vif(result)
+
+```
+
+According to this calculation, there is significant collinearity between the different types of clarity, and there appears to be some collinearity within the Ideal and Very Good cuts. As noted in the exploratory data section, both cut and clarity have one high quality and very rare category: Astor Ideal and Flawless, respectively. However, these rare categories are not showing up as they are currently set as the reference category. They also have significantly fewer values in those categories, so it is important to make sure the VIFs are not high only because the reference category is very small. I will change the reference category to Good for cut and SI1 for clarity and re-calculate the VIFs. Below are the values with the adjusted reference categories.
+
+```{VIF updated, echo=FALSE}
+clarity<-relevel(clarity, ref = "SI2")
+cut<-relevel(cut, ref = "Good")
+
+result2 <- lm(price~carat+color+cut+clarity)
+vif(result2)
+```
+
+With the new reference categories, the VIFs have reduced and none exceed 10. The VIFs were high due to the low proportion of diamonds in the previous reference categories. Therefore, it is appropriate to conclude there is not multicollinearity between carat, cut, color, and clarity. The next step should be reviewing the model to determine what the best linear model to predict price is.
+
+
